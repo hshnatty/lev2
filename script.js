@@ -15,13 +15,28 @@ const db = firebase.firestore();
 
 let userId = null;
 let userName = null;
-const ADMIN_UID = "nMf919ubZIRdFHPOxuJcrL54i7F2"; // <-- Replace with your Firebase UID
 
-// -------------------- Auth State --------------------
+// -------------------- Restore login on reload --------------------
 auth.onAuthStateChanged((user) => {
     if (user) {
         userId = user.uid;
-        checkUsername();
+
+        // Check if username exists
+        db.collection("users").doc(userId).get().then(doc => {
+            if (doc.exists && doc.data().username) {
+                userName = doc.data().username;
+                document.getElementById("user-name").innerText = `Welcome, ${userName}`;
+                toggleVisibility("forum-container");
+                toggleVisibility("login-container", false);
+                toggleVisibility("username-setup", false);
+                loadPosts();
+            } else {
+                // Show username setup
+                toggleVisibility("username-setup", true);
+                toggleVisibility("login-container", false);
+                toggleVisibility("forum-container", false);
+            }
+        });
     } else {
         toggleVisibility("login-container");
         toggleVisibility("forum-container", false);
@@ -29,12 +44,25 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
-// -------------------- Login --------------------
+// -------------------- Login with Google --------------------
 function login() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch((error) => {
-        console.error("Login Error: ", error);
-    });
+    auth.signInWithPopup(provider).catch((error) => console.error("Login Error:", error));
+}
+
+// -------------------- Save Username --------------------
+function saveUsername() {
+    const enteredName = document.getElementById("username-input").value.trim();
+    if (!enteredName) return alert("Please enter a username");
+
+    db.collection("users").doc(userId).set({ username: enteredName })
+      .then(() => {
+          userName = enteredName;
+          document.getElementById("user-name").innerText = `Welcome, ${userName}`;
+          toggleVisibility("username-setup", false);
+          toggleVisibility("forum-container", true);
+          loadPosts();
+      }).catch(err => console.error("Error saving username:", err));
 }
 
 // -------------------- Logout --------------------
@@ -43,65 +71,31 @@ function logout() {
         toggleVisibility("login-container");
         toggleVisibility("forum-container", false);
         toggleVisibility("username-setup", false);
-    }).catch((error) => console.error("Logout Error: ", error));
+    }).catch(err => console.error("Logout Error:", err));
 }
 
-// -------------------- Username --------------------
-function checkUsername() {
-    db.collection("users").doc(userId).get().then(doc => {
-        if (doc.exists && doc.data().username) {
-            userName = doc.data().username;
-            document.getElementById("user-name").innerText = `Welcome, ${userName}`;
-            toggleVisibility("forum-container");
-            toggleVisibility("login-container", false);
-            toggleVisibility("username-setup", false);
-            loadPosts();
-        } else {
-            toggleVisibility("username-setup", true);
-            toggleVisibility("login-container", false);
-            toggleVisibility("forum-container", false);
-        }
-    });
-}
-
-function saveUsername() {
-    const enteredName = document.getElementById("username-input").value.trim();
-    if (!enteredName) {
-        alert("Please enter a username");
-        return;
-    }
-
-    db.collection("users").doc(userId).set({ username: enteredName })
-    .then(() => {
-        userName = enteredName;
-        document.getElementById("user-name").innerText = `Welcome, ${userName}`;
-        toggleVisibility("username-setup", false);
-        toggleVisibility("forum-container", true);
-        loadPosts();
-    }).catch(err => console.error("Error saving username:", err));
-}
-
-// -------------------- Submit Post --------------------
+// -------------------- Submit a Post --------------------
 function submitPost() {
     const postText = document.getElementById("post-text").value.trim();
-    if (postText === "") return;
+    if (!postText) return;
 
     db.collection("posts").add({
         userId,
         userName,
         content: postText,
+        pinned: false, // default not pinned
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
         document.getElementById("post-text").value = "";
         loadPosts();
-    }).catch(err => console.error("Error posting:", err));
+    });
 }
 
-// -------------------- Submit Reply --------------------
+// -------------------- Submit a Reply --------------------
 function submitReply(postId) {
     const replyInput = document.getElementById(`reply-input-${postId}`);
     const replyText = replyInput.value.trim();
-    if (replyText === "") return;
+    if (!replyText) return;
 
     db.collection("posts").doc(postId).collection("replies").add({
         userId,
@@ -111,94 +105,55 @@ function submitReply(postId) {
     }).then(() => {
         replyInput.value = "";
         loadPosts();
-    }).catch(err => console.error("Error replying:", err));
-}
-
-// -------------------- Delete Post (Admin) --------------------
-function deletePost(postId) {
-    if (userId !== ADMIN_UID) return;
-    db.collection("posts").doc(postId).delete()
-    .then(() => loadPosts())
-    .catch(err => console.error("Error deleting post:", err));
+    });
 }
 
 // -------------------- Load Posts --------------------
-async function loadPosts() {
+function loadPosts() {
     const postsDiv = document.getElementById("posts");
-    postsDiv.innerHTML = "";
+    postsDiv.innerHTML = ""; // Clear once
 
-    const querySnapshot = await db.collection("posts").orderBy("timestamp", "desc").get();
-    for (const doc of querySnapshot.docs) {
-        const postData = doc.data();
-        const postId = doc.id;
+    // Get all posts, pinned first
+    db.collection("posts")
+      .orderBy("pinned", "desc")
+      .orderBy("timestamp", "desc")
+      .get()
+      .then(async (querySnapshot) => {
+        for (const doc of querySnapshot.docs) {
+            const postData = doc.data();
+            const postId = doc.id;
 
-        // Post container
-        const postElement = document.createElement("div");
-        postElement.style.border = "1px solid #ccc";
-        postElement.style.padding = "10px";
-        postElement.style.marginBottom = "10px";
-        postElement.style.backgroundColor = "#fff";
+            const postElement = document.createElement("div");
+            postElement.className = "post";
+            postElement.innerHTML = `
+                <h3>${postData.userName}</h3>
+                <p>${postData.content}</p>
+                ${postData.pinned ? "<span class='pinned-label'>📌 Pinned</span>" : ""}
+                <small>${postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>
+                <div>
+                    <input type="text" id="reply-input-${postId}" placeholder="Write a reply..." />
+                    <button onclick="submitReply('${postId}')">Reply</button>
+                </div>
+                <div id="replies-${postId}" class="replies"></div>
+                <hr>
+            `;
+            postsDiv.appendChild(postElement);
 
-        // Post header
-        const h3 = document.createElement("h3");
-        h3.innerText = postData.userName;
-        postElement.appendChild(h3);
-
-        // Post content
-        const p = document.createElement("p");
-        p.innerText = postData.content;
-        postElement.appendChild(p);
-
-        // Timestamp
-        const small = document.createElement("small");
-        const date = postData.timestamp?.seconds 
-            ? new Date(postData.timestamp.seconds * 1000).toLocaleString() 
-            : "Unknown";
-        small.innerText = `Posted on ${date}`;
-        postElement.appendChild(small);
-
-        // Reply input
-        const replyDiv = document.createElement("div");
-        replyDiv.style.marginTop = "10px";
-        const replyInput = document.createElement("input");
-        replyInput.type = "text";
-        replyInput.id = `reply-input-${postId}`;
-        replyInput.placeholder = "Write a reply...";
-        const replyBtn = document.createElement("button");
-        replyBtn.innerText = "Reply";
-        replyBtn.onclick = () => submitReply(postId);
-        replyDiv.appendChild(replyInput);
-        replyDiv.appendChild(replyBtn);
-        postElement.appendChild(replyDiv);
-
-        // Replies container
-        const repliesContainer = document.createElement("div");
-        repliesContainer.id = `replies-${postId}`;
-        repliesContainer.style.marginTop = "10px";
-        postElement.appendChild(repliesContainer);
-
-        // Admin delete button
-        if (userId === ADMIN_UID) {
-            const deleteBtn = document.createElement("button");
-            deleteBtn.innerText = "Delete Post";
-            deleteBtn.style.marginTop = "10px";
-            deleteBtn.onclick = () => deletePost(postId);
-            postElement.appendChild(deleteBtn);
+            // Load replies
+            const repliesSnap = await db.collection("posts").doc(postId).collection("replies").orderBy("timestamp", "asc").get();
+            const repliesDiv = document.getElementById(`replies-${postId}`);
+            repliesSnap.forEach(replyDoc => {
+                const replyData = replyDoc.data();
+                const replyElement = document.createElement("div");
+                replyElement.style.marginLeft = "20px";
+                replyElement.innerHTML = `
+                    <strong>${replyData.userName}:</strong> ${replyData.content}
+                    <br><small>${replyData.timestamp ? new Date(replyData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>
+                `;
+                repliesDiv.appendChild(replyElement);
+            });
         }
-
-        postsDiv.appendChild(postElement);
-
-        // Load replies
-        const repliesSnap = await db.collection("posts").doc(postId).collection("replies").orderBy("timestamp", "asc").get();
-        repliesSnap.forEach(replyDoc => {
-            const replyData = replyDoc.data();
-            const replyEl = document.createElement("div");
-            replyEl.style.marginLeft = "20px";
-            replyEl.innerHTML = `<strong>${replyData.userName}:</strong> ${replyData.content}<br>
-                                 <small>${replyData.timestamp?.seconds ? new Date(replyData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>`;
-            repliesContainer.appendChild(replyEl);
-        });
-    }
+    });
 }
 
 // -------------------- Toggle Visibility --------------------
