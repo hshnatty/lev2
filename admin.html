@@ -2,32 +2,54 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Orthodox Forum</title>
-    <link rel="stylesheet" href="styles.css">
-
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.2/firebase-firestore-compat.js"></script>
+    <title>Admin Dashboard</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #222;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #333;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #333;
+        }
+        button {
+            padding: 5px 10px;
+            background: crimson;
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        .pin-btn {
+            background: #4caf50;
+        }
+    </style>
 </head>
 <body>
     <h1>Admin Dashboard</h1>
-    <button onclick="logout()">Logout</button>
-
-    <table id="posts-table" border="1" cellpadding="5" style="margin-top:20px; width:100%;">
+    <table>
         <thead>
             <tr>
                 <th>User</th>
                 <th>Content</th>
-                <th>Timestamp</th>
                 <th>Pinned</th>
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="posts-body"></tbody>
+        <tbody id="posts-table"></tbody>
     </table>
 
-    <script src="admin.js"></script>
+    <script type="module" src="admin.js"></script>
 </body>
 </html>
