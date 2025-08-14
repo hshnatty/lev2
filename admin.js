@@ -1,103 +1,70 @@
-// -------------------- Firebase Setup --------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+
 const firebaseConfig = {
-    apiKey: "AIzaSyArgnPP7ZPdO86qT1wm7wqw_qS_IhNW1qk",
-    authDomain: "lv1w-29520.firebaseapp.com",
-    projectId: "lv1w-29520",
-    storageBucket: "lv1w-29520.firebasestorage.app",
-    messagingSenderId: "574419777057",
-    appId: "1:574419777057:web:47db3d4ef8de155d269560",
-    measurementId: "G-1QXRLXB33N"
+    apiKey: "AIzaSyA5ZatulVEicBeWqNciKtjd4fcQeAvohmY",
+    authDomain: "natty-caa61.firebaseapp.com",
+    projectId: "natty-caa61",
+    storageBucket: "natty-caa61.firebasestorage.app",
+    messagingSenderId: "822585320498",
+    appId: "1:822585320498:web:01f76915ec4735bb6d082b",
+    measurementId: "G-3RVDQ36T50"
 };
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+const ADMIN_UID = "nMf919ubZIRdFHPOxuJcrL54i7F2"; // Replace with your Firebase UID
 
-const ADMIN_UID = "nMf919ubZIRdFHPOxuJcrL54i7F2"; // <-- Replace with your actual UID
+// Init Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-// -------------------- Auth Check --------------------
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        if (user.uid !== ADMIN_UID) {
-            alert("Access denied. Admin only.");
-            window.location.href = "index.html";
-        } else {
-            loadPosts();
-        }
+// Auth check
+onAuthStateChanged(auth, (user) => {
+    if (!user || user.uid !== ADMIN_UID) {
+        alert("Access denied");
+        window.location.href = "login.html";
     } else {
-        window.location.href = "index.html";
+        loadPosts();
     }
 });
 
-// -------------------- Logout --------------------
-function logout() {
-    auth.signOut().then(() => window.location.href = "index.html");
-}
-
-// -------------------- Load Posts --------------------
+// Load posts into table
 function loadPosts() {
-    db.collection("posts").orderBy("timestamp", "desc").onSnapshot(snapshot => {
-        const tbody = document.getElementById("posts-body");
-        tbody.innerHTML = "";
+    const postsRef = collection(db, "posts");
+    const q = query(postsRef, orderBy("pinned", "desc"), orderBy("timestamp", "desc"));
 
-        snapshot.forEach(doc => {
-            const post = doc.data();
+    onSnapshot(q, (snapshot) => {
+        const table = document.getElementById("posts-table");
+        table.innerHTML = "";
+
+        snapshot.forEach(docSnap => {
+            const post = docSnap.data();
             const tr = document.createElement("tr");
 
-            // User
-            const tdUser = document.createElement("td");
-            tdUser.textContent = post.userName;
-            tr.appendChild(tdUser);
+            tr.innerHTML = `
+                <td>${post.userName || "Anonymous"}</td>
+                <td>${post.content || ""}</td>
+                <td>${post.pinned ? "Yes" : "No"}</td>
+                <td>
+                    <button class="pin-btn">${post.pinned ? "Unpin" : "Pin"}</button>
+                    <button class="delete-btn">Delete</button>
+                </td>
+            `;
 
-            // Content
-            const tdContent = document.createElement("td");
-            tdContent.textContent = post.content;
-            tr.appendChild(tdContent);
+            // Pin/Unpin
+            tr.querySelector(".pin-btn").addEventListener("click", async () => {
+                await updateDoc(doc(db, "posts", docSnap.id), { pinned: !post.pinned });
+            });
 
-            // Timestamp
-            const tdTime = document.createElement("td");
-            tdTime.textContent = post.timestamp?.seconds
-                ? new Date(post.timestamp.seconds * 1000).toLocaleString()
-                : "Unknown";
-            tr.appendChild(tdTime);
+            // Delete
+            tr.querySelector(".delete-btn").addEventListener("click", async () => {
+                if (confirm("Delete this post?")) {
+                    await deleteDoc(doc(db, "posts", docSnap.id));
+                }
+            });
 
-            // Pinned status
-            const tdPinned = document.createElement("td");
-            tdPinned.textContent = post.pinned ? "✅" : "❌";
-            tr.appendChild(tdPinned);
-
-            // Actions
-            const tdActions = document.createElement("td");
-
-            // Delete button
-            const delBtn = document.createElement("button");
-            delBtn.textContent = "Delete";
-            delBtn.onclick = () => deletePost(doc.id);
-            tdActions.appendChild(delBtn);
-
-            // Pin/Unpin button
-            const pinBtn = document.createElement("button");
-            pinBtn.textContent = post.pinned ? "Unpin" : "Pin";
-            pinBtn.style.marginLeft = "5px";
-            pinBtn.onclick = () => togglePin(doc.id, !post.pinned);
-            tdActions.appendChild(pinBtn);
-
-            tr.appendChild(tdActions);
-
-            tbody.appendChild(tr);
+            table.appendChild(tr);
         });
     });
-}
-
-// -------------------- Delete Post --------------------
-function deletePost(postId) {
-    if (confirm("Are you sure you want to delete this post?")) {
-        db.collection("posts").doc(postId).delete().catch(err => console.error("Error deleting:", err));
-    }
-}
-
-// -------------------- Pin / Unpin Post --------------------
-function togglePin(postId, status) {
-    db.collection("posts").doc(postId).update({ pinned: status })
-        .catch(err => console.error("Error updating pin status:", err));
 }
