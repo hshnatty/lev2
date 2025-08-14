@@ -1,3 +1,4 @@
+/* General Page Styles */
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -5,39 +6,22 @@ body {
     background-color: #f1f1f1;
 }
 
-h1 {
+/* Headings */
+h1, h2, h3 {
     color: #333;
 }
 
-#login-container, #forum-container, #admin-container {
+/* Container Layouts */
+#login-container, 
+#forum-container, 
+#username-setup, 
+#admin-container {
     padding: 20px;
     margin: 0 auto;
     max-width: 600px;
 }
 
-#post-container {
-    margin-top: 20px;
-}
-
-textarea {
-    width: 100%;
-    height: 100px;
-    padding: 10px;
-    font-size: 14px;
-}
-
-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-}
-
-button:hover {
-    background-color: #45a049;
-}
+/* Login Page Centering */
 #login-container {
     display: flex;
     justify-content: center;
@@ -45,16 +29,69 @@ button:hover {
     height: 100vh;
 }
 
-#login-container button {
+/* Buttons */
+button {
     background-color: #4CAF50;
     color: white;
-    padding: 12px 24px;
-    font-size: 16px;
+    padding: 8px 16px;
     border: none;
     cursor: pointer;
+    font-size: 14px;
     border-radius: 4px;
+    margin-top: 5px;
 }
 
-#login-container button:hover {
+button:hover {
     background-color: #45a049;
+}
+
+/* Textarea for posting */
+textarea {
+    width: 100%;
+    height: 100px;
+    padding: 10px;
+    font-size: 14px;
+    resize: none;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+/* Post container */
+#posts > div {
+    border: 1px solid #ccc;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Post header */
+#posts h3 {
+    margin: 0 0 8px 0;
+}
+
+/* Reply section */
+input[type="text"] {
+    padding: 6px;
+    width: calc(100% - 80px);
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
+/* Replies inside posts */
+.replies div {
+    background-color: #fafafa;
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    border: 1px solid #ddd;
+}
+
+/* Timestamp text */
+small {
+    display: block;
+    color: #666;
+    margin-top: 5px;
 }
