@@ -1,4 +1,4 @@
-// Initialize Firebase
+// -------------------- Firebase Setup --------------------
 const firebaseConfig = {
     apiKey: "AIzaSyArgnPP7ZPdO86qT1wm7wqw_qS_IhNW1qk",
     authDomain: "lv1w-29520.firebaseapp.com",
@@ -15,29 +15,13 @@ const db = firebase.firestore();
 
 let userId = null;
 let userName = null;
+const ADMIN_UID = "nMf919ubZIRdFHPOxuJcrL54i7F2"; // <-- Replace with your Firebase UID
 
-// Restore login on reload
+// -------------------- Auth State --------------------
 auth.onAuthStateChanged((user) => {
     if (user) {
         userId = user.uid;
-
-        // Check if username exists in Firestore
-        db.collection("users").doc(userId).get().then(doc => {
-            if (doc.exists && doc.data().username) {
-                userName = doc.data().username;
-                document.getElementById("user-name").innerText = `Welcome, ${userName}`;
-                loadPosts();
-                toggleVisibility("forum-container");
-                toggleVisibility("login-container", false);
-                toggleVisibility("username-setup", false);
-            } else {
-                // Show username setup form
-                toggleVisibility("username-setup", true);
-                toggleVisibility("login-container", false);
-                toggleVisibility("forum-container", false);
-            }
-        });
-
+        checkUsername();
     } else {
         toggleVisibility("login-container");
         toggleVisibility("forum-container", false);
@@ -45,15 +29,41 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
-// Login with Google
-const login = () => {
+// -------------------- Login --------------------
+function login() {
     const provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider).catch((error) => {
         console.error("Login Error: ", error);
     });
-};
+}
 
-// Save username from HTML form
+// -------------------- Logout --------------------
+function logout() {
+    auth.signOut().then(() => {
+        toggleVisibility("login-container");
+        toggleVisibility("forum-container", false);
+        toggleVisibility("username-setup", false);
+    }).catch((error) => console.error("Logout Error: ", error));
+}
+
+// -------------------- Username --------------------
+function checkUsername() {
+    db.collection("users").doc(userId).get().then(doc => {
+        if (doc.exists && doc.data().username) {
+            userName = doc.data().username;
+            document.getElementById("user-name").innerText = `Welcome, ${userName}`;
+            toggleVisibility("forum-container");
+            toggleVisibility("login-container", false);
+            toggleVisibility("username-setup", false);
+            loadPosts();
+        } else {
+            toggleVisibility("username-setup", true);
+            toggleVisibility("login-container", false);
+            toggleVisibility("forum-container", false);
+        }
+    });
+}
+
 function saveUsername() {
     const enteredName = document.getElementById("username-input").value.trim();
     if (!enteredName) {
@@ -61,9 +71,8 @@ function saveUsername() {
         return;
     }
 
-    db.collection("users").doc(userId).set({
-        username: enteredName
-    }).then(() => {
+    db.collection("users").doc(userId).set({ username: enteredName })
+    .then(() => {
         userName = enteredName;
         document.getElementById("user-name").innerText = `Welcome, ${userName}`;
         toggleVisibility("username-setup", false);
@@ -72,90 +81,127 @@ function saveUsername() {
     }).catch(err => console.error("Error saving username:", err));
 }
 
-// Logout
-const logout = () => {
-    auth.signOut().then(() => {
-        toggleVisibility("login-container");
-        toggleVisibility("forum-container", false);
-        toggleVisibility("username-setup", false);
-    }).catch((error) => {
-        console.error("Logout Error: ", error);
-    });
-};
+// -------------------- Submit Post --------------------
+function submitPost() {
+    const postText = document.getElementById("post-text").value.trim();
+    if (postText === "") return;
 
-// Submit a post
-const submitPost = () => {
-    const postText = document.getElementById("post-text").value;
-    if (postText.trim() !== "") {
-        db.collection("posts").add({
-            userId: userId,
-            userName: userName,
-            content: postText,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
-            document.getElementById("post-text").value = "";
-            loadPosts();
-        });
-    }
-};
+    db.collection("posts").add({
+        userId,
+        userName,
+        content: postText,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        document.getElementById("post-text").value = "";
+        loadPosts();
+    }).catch(err => console.error("Error posting:", err));
+}
 
-// Submit a reply
-const submitReply = (postId) => {
+// -------------------- Submit Reply --------------------
+function submitReply(postId) {
     const replyInput = document.getElementById(`reply-input-${postId}`);
-    const replyText = replyInput.value;
-    if (replyText.trim() !== "") {
-        db.collection("posts").doc(postId).collection("replies").add({
-            userId: userId,
-            userName: userName,
-            content: replyText,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
-            replyInput.value = "";
-            loadPosts();
+    const replyText = replyInput.value.trim();
+    if (replyText === "") return;
+
+    db.collection("posts").doc(postId).collection("replies").add({
+        userId,
+        userName,
+        content: replyText,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        replyInput.value = "";
+        loadPosts();
+    }).catch(err => console.error("Error replying:", err));
+}
+
+// -------------------- Delete Post (Admin) --------------------
+function deletePost(postId) {
+    if (userId !== ADMIN_UID) return;
+    db.collection("posts").doc(postId).delete()
+    .then(() => loadPosts())
+    .catch(err => console.error("Error deleting post:", err));
+}
+
+// -------------------- Load Posts --------------------
+async function loadPosts() {
+    const postsDiv = document.getElementById("posts");
+    postsDiv.innerHTML = "";
+
+    const querySnapshot = await db.collection("posts").orderBy("timestamp", "desc").get();
+    for (const doc of querySnapshot.docs) {
+        const postData = doc.data();
+        const postId = doc.id;
+
+        // Post container
+        const postElement = document.createElement("div");
+        postElement.style.border = "1px solid #ccc";
+        postElement.style.padding = "10px";
+        postElement.style.marginBottom = "10px";
+        postElement.style.backgroundColor = "#fff";
+
+        // Post header
+        const h3 = document.createElement("h3");
+        h3.innerText = postData.userName;
+        postElement.appendChild(h3);
+
+        // Post content
+        const p = document.createElement("p");
+        p.innerText = postData.content;
+        postElement.appendChild(p);
+
+        // Timestamp
+        const small = document.createElement("small");
+        const date = postData.timestamp?.seconds 
+            ? new Date(postData.timestamp.seconds * 1000).toLocaleString() 
+            : "Unknown";
+        small.innerText = `Posted on ${date}`;
+        postElement.appendChild(small);
+
+        // Reply input
+        const replyDiv = document.createElement("div");
+        replyDiv.style.marginTop = "10px";
+        const replyInput = document.createElement("input");
+        replyInput.type = "text";
+        replyInput.id = `reply-input-${postId}`;
+        replyInput.placeholder = "Write a reply...";
+        const replyBtn = document.createElement("button");
+        replyBtn.innerText = "Reply";
+        replyBtn.onclick = () => submitReply(postId);
+        replyDiv.appendChild(replyInput);
+        replyDiv.appendChild(replyBtn);
+        postElement.appendChild(replyDiv);
+
+        // Replies container
+        const repliesContainer = document.createElement("div");
+        repliesContainer.id = `replies-${postId}`;
+        repliesContainer.style.marginTop = "10px";
+        postElement.appendChild(repliesContainer);
+
+        // Admin delete button
+        if (userId === ADMIN_UID) {
+            const deleteBtn = document.createElement("button");
+            deleteBtn.innerText = "Delete Post";
+            deleteBtn.style.marginTop = "10px";
+            deleteBtn.onclick = () => deletePost(postId);
+            postElement.appendChild(deleteBtn);
+        }
+
+        postsDiv.appendChild(postElement);
+
+        // Load replies
+        const repliesSnap = await db.collection("posts").doc(postId).collection("replies").orderBy("timestamp", "asc").get();
+        repliesSnap.forEach(replyDoc => {
+            const replyData = replyDoc.data();
+            const replyEl = document.createElement("div");
+            replyEl.style.marginLeft = "20px";
+            replyEl.innerHTML = `<strong>${replyData.userName}:</strong> ${replyData.content}<br>
+                                 <small>${replyData.timestamp?.seconds ? new Date(replyData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>`;
+            repliesContainer.appendChild(replyEl);
         });
     }
-};
+}
 
-// Load posts & replies
-const loadPosts = () => {
-    db.collection("posts").orderBy("timestamp", "desc").get().then(async (querySnapshot) => {
-        const postsDiv = document.getElementById("posts");
-        postsDiv.innerHTML = "";
-        for (const doc of querySnapshot.docs) {
-            const postData = doc.data();
-            const postId = doc.id;
-
-            const postElement = document.createElement("div");
-            postElement.innerHTML = `
-                <h3>${postData.userName}</h3>
-                <p>${postData.content}</p>
-                <small>Posted on ${postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>
-                <div>
-                    <input type="text" id="reply-input-${postId}" placeholder="Write a reply..." />
-                    <button onclick="submitReply('${postId}')">Reply</button>
-                </div>
-                <div id="replies-${postId}" class="replies"></div>
-                <hr>
-            `;
-            postsDiv.appendChild(postElement);
-
-            const repliesSnap = await db.collection("posts").doc(postId).collection("replies").orderBy("timestamp", "asc").get();
-            const repliesDiv = document.getElementById(`replies-${postId}`);
-            repliesSnap.forEach(replyDoc => {
-                const replyData = replyDoc.data();
-                const replyElement = document.createElement("div");
-                replyElement.style.marginLeft = "20px";
-                replyElement.innerHTML = `
-                    <strong>${replyData.userName}:</strong> ${replyData.content}
-                    <br><small>${replyData.timestamp ? new Date(replyData.timestamp.seconds * 1000).toLocaleString() : "Unknown"}</small>
-                `;
-                repliesDiv.appendChild(replyElement);
-            });
-        }
-    });
-};
-
-// Toggle visibility helper
-const toggleVisibility = (id, show = true) => {
+// -------------------- Toggle Visibility --------------------
+function toggleVisibility(id, show = true) {
     document.getElementById(id).style.display = show ? "block" : "none";
-};
+}
