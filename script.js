@@ -160,3 +160,10 @@ function loadPosts() {
 function toggleVisibility(id, show = true) {
     document.getElementById(id).style.display = show ? "block" : "none";
 }
+db.collection("posts")
+  .orderBy("timestamp", "desc")
+  .get()
+  .then(async (querySnapshot) => {
+    // render posts...
+  });
+
